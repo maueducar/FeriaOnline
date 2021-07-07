@@ -1,0 +1,116 @@
+const Sequelize = require('sequelize');
+module.exports = function(sequelize, DataTypes) {
+  return sequelize.define('zmCoTrDC', {
+    CodComComp: {
+      type: DataTypes.STRING(4),
+      allowNull: false,
+      defaultValue: ""
+    },
+    LetCompro: {
+      type: DataTypes.STRING(2),
+      allowNull: false,
+      defaultValue: ""
+    },
+    PunVenCom: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0
+    },
+    NumCompro: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0
+    },
+    IdCompro: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0,
+      primaryKey: true
+    },
+    IdRegistro: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0,
+      primaryKey: true
+    },
+    VisCompro: {
+      type: DataTypes.STRING(16),
+      allowNull: false,
+      defaultValue: ""
+    },
+    CantCabezas: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0
+    },
+    CodClasif: {
+      type: DataTypes.STRING(3),
+      allowNull: false,
+      defaultValue: ""
+    },
+    KgTotales: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0
+    },
+    KgPromedio: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0
+    },
+    PrecioKg: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0
+    },
+    Subtotal: {
+      type: DataTypes.DECIMAL,
+      allowNull: false,
+      defaultValue: 0
+    }
+  }, {
+    sequelize,
+    tableName: 'zmCoTrDC',
+    schema: 'dbo',
+    hasTrigger: true,
+    timestamps: false,
+    indexes: [
+      {
+        name: "xCodClasif_zCtDc",
+        fields: [
+          { name: "CodClasif" },
+        ]
+      },
+      {
+        name: "xIdCompReg_zCtDc",
+        unique: true,
+        fields: [
+          { name: "IdCompro" },
+          { name: "IdRegistro" },
+        ]
+      },
+      {
+        name: "xNroComprob_zCtDc",
+        fields: [
+          { name: "CodComComp" },
+          { name: "LetCompro" },
+          { name: "PunVenCom" },
+          { name: "NumCompro" },
+          { name: "IdCompro" },
+        ]
+      },
+      {
+        name: "xNroCompYCodClasif_zCtDc",
+        fields: [
+          { name: "CodComComp" },
+          { name: "LetCompro" },
+          { name: "PunVenCom" },
+          { name: "NumCompro" },
+          { name: "IdCompro" },
+          { name: "CodClasif" },
+          { name: "CantCabezas" },
+        ]
+      },
+    ]
+  });
+};

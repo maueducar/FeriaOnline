@@ -1,0 +1,719 @@
+create PROCEDURE [dbo].[InsertOrUpdateCabCostoTipCon] 
+	@CabCostoTipConID int = 0, @CodTipConcepto int = 0, @Descripcion varchar(100), @Importe decimal(15,2), @FechaAlta datetime, @UsuarioAlta varchar(50), @FechaBaja datetime, @UsuarioBaja varchar(50)
+AS
+BEGIN
+	SET NOCOUNT ON;
+
+	if @CabCostoTipConID <> 0
+	begin
+		insert into CabCostoTipCon (CabCostoTipConID,CodTipConcepto,Descripcion,Importe,FechaAlta,UsuarioAlta)
+		values (@CabCostoTipConID,@CodTipConcepto,@Descripcion,@Importe,@FechaAlta,@UsuarioAlta)
+	end
+	else
+	begin
+		update CabCostoTipCon
+		set CodTipConcepto = @CodTipConcepto,
+		    Descripcion = @Descripcion,
+			Importe = @Importe,
+			FechaBaja = @FechaBaja,
+			UsuarioBaja = @UsuarioBaja
+	end
+END
+
+
+
+CREATE TABLE [dbo].[DetCostoTipCon](
+	[DetCostoTipConcID] [int] NOT NULL,
+	[CostoTipConID] [int] NOT NULL,
+	[CodConFac] [int] NULL,
+	[FechaAlta] [datetime] NULL,
+	[UsuarioAlta] [varchar](50) NULL,
+	[FechaBaja] [datetime] NULL,
+	[UsuarioBaja] [datetime] NULL
+) ON [PRIMARY]
+
+
+
+CREATE PROCEDURE [dbo].[InsertOrUpdateDetCostoTipCon] 
+	@DetCostoTipConID int = 0, @CabCostoTipConID int = 0, @CodConFac int = 0, @FechaAlta datetime, @UsuarioAlta varchar(50), @FechaBaja datetime, @UsuarioBaja varchar(50), @Observaciones varchar(500)
+AS
+BEGIN
+	SET NOCOUNT ON;
+
+	if @DetCostoTipConID <> 0
+	begin
+		insert into DetCostoTipCon (DetCostoTipConcID,CabCostoTipConID,CodConFac,FechaAlta,UsuarioAlta)
+		values (@DetCostoTipConID,@CabCostoTipConID,@CodConFac,@FechaAlta,@UsuarioAlta)
+	end
+	else
+	begin
+		update DetCostoTipCon
+		set CodConFac = @CodConFac,
+			FechaBaja = @FechaBaja,
+			UsuarioBaja = @UsuarioBaja
+	end
+END
+
+
+
+
+CREATE PROCEDURE [dbo].insertOrUpdateDetPrestacion 
+	@PrestacionID int, @TipoConceltoID int = 0, @CodConFac int = 0, @Importe float = 0,@Usuario varchar(50)
+AS
+BEGIN
+	SET NOCOUNT ON;
+
+	
+	if not exists(select * from DetPrestacion d where d.PrestacionID = @PrestacionID and d.CodConFac = @CodConFac)
+	begin
+		insert into DetPrestacion (PrestacionID,CodConFac,Importe,FechaAlta,UsuarioAlta)
+		values (@TipoConceltoID,@CodConFac,@Importe,getdate(),@Usuario)
+	end
+	else
+	begin
+		update DetPrestacion 
+		set CodConFac = @CodConFac,
+			Importe = @Importe,
+			FechaModificacion = getdate(),
+			UsuarioModificacion = @Usuario
+		where PrestacionID = @PrestacionID
+		and CodConFac = @CodConFac
+	end
+
+	
+
+END
+
+CREATE PROCEDURE [dbo].GetDetPrestacion 
+AS
+BEGIN
+	SET NOCOUNT ON;
+	
+		DECLARE
+		@columns NVARCHAR(MAX) = '',
+		@sql     NVARCHAR(MAX) = '';
+ 
+		-- select the category names
+		SELECT 
+			@columns+=
+			QUOTENAME(Concepto) + ','
+		--select *  
+		FROM (select distinct concepto 
+			  from vcconfac
+			  where CodRubro = 12) l
+
+ 
+		-- remove the last comma
+		SET @columns = LEFT(@columns, LEN(@columns) - 1);
+
+
+		-- construct dynamic SQL
+		SET @sql ='
+		declare @tabla table(Clasificacion varchar(200),Descripcion varchar(200),'+  replace(@columns,',','float,') + 'float)
+
+		insert into @tabla
+		SELECT * FROM  
+		(
+			select x.DesConcepto as [Clasificacion] ,p.Descripcion, vccf.Concepto,Importe
+			from vcconfac vccf
+			LEFT join DetPrestacion dp on dp.CodConFac = vccf.CodConFac 
+			left join prestacion p on p.PrestacionID = dp.PrestacionID
+			left join xgTipCon x on x.CodTipConcepto = p.CodTipConcepto
+			where vccf.codrubro = 12
+		) t
+		PIVOT(
+			sum(Importe)
+			FOR Concepto IN ('+ @columns +')
+		) AS pivot_table
+
+		select *,'+ replace(@columns,',','+') +' as [Total Plan], ('+ replace(@columns,',','+')  +') * 0.011 as [Costo Plan] from @tabla order by 1
+		';
+ 
+
+		EXECUTE sp_executesql @sql 
+
+END
+
+
+---------------------------
+
+select x.DesConcepto as [Clasificacion] ,p.Descripcion, vccf.Concepto,Importe
+from vcconfac vccf
+LEFT join DetPrestacion dp on dp.CodConFac = vccf.CodConFac 
+left join prestacion p on p.PrestacionID = dp.PrestacionID
+left join xgTipCon x on x.CodTipConcepto = p.CodTipConcepto
+where vccf.codrubro = 12
+
+			
+
+
+CREATE TABLE [dbo].[CostoTipConc](
+	[CostoTipConcID] [int] NOT NULL,
+	[CodTipConcepto] [int] Not NULL,
+	[CodConFac] int not null,
+	--[Descripcion] varchar(800) not null,
+	[Importe] float Not Null,
+	[FechaAlta] [datetime] not NULL,
+	[UsuarioAlta] [varchar](50) not NULL,
+	[FechaBaja] [datetime] NULL,
+	[UsuarioBaja] [varchar](50) NULL,
+	FechaModificacion [datetime] NULL,
+	UsuarioModificacion [varchar](50) NULL
+) ON [PRIMARY] 
+
+CREATE TABLE [dbo].[Prestacion](
+	[PrestacionID] [int] NOT NULL,
+	[CodTipConcepto] [int] Not NULL,
+	[Descripcion] varchar(800) not null,
+	[ImporteTotal] float Not Null,
+	[CostoPlan] float Not Null,
+	[FechaAlta] [datetime] not NULL,
+	[UsuarioAlta] [varchar](50) not NULL,
+	[FechaBaja] [datetime] NULL,
+	[UsuarioBaja] [varchar](50) NULL,
+	FechaModificacion [datetime] NULL,
+	UsuarioModificacion [varchar](50) NULL
+) ON [PRIMARY]
+
+CREATE TABLE [dbo].[DetPrestacion](
+	[PrestacionID] [int] NOT NULL,
+	[CodConFac] [int] Not NULL,
+	[Importe] float Not Null,
+	[FechaAlta] [datetime] not NULL,
+	[UsuarioAlta] [varchar](50) not NULL,
+	[FechaBaja] [datetime] NULL,
+	[UsuarioBaja] [varchar](50) NULL,
+	FechaModificacion [datetime] NULL,
+	UsuarioModificacion [varchar](50) NULL
+) ON [PRIMARY]
+
+insert into Prestacion values(1,1,'S. Sepelio + Arreglo floral',0,0,getdate(),'admin',null,null,null,null)
+insert into Prestacion values(2,2,'S. Sepelio + Arreglo Floral + Nicho',0,0,getdate(),'admin',null,null,null,null)
+insert into Prestacion values(3,3,'S. Sepelio + Arreglo Floral + 1 Nivel',0,0,getdate(),'admin',null,null,null,null)
+insert into Prestacion values(4,4,'S. Sepelio + Arreglo Floral + 1 Nivel',0,0,getdate(),'admin',null,null,null,null)
+insert into Prestacion values(5,5,'Cremación + Arreglo Floral',0,0,getdate(),'admin',null,null,null,null)
+insert into Prestacion values(6,6,'Indemnización',0,0,getdate(),'admin',null,null,null,null)
+insert into Prestacion values(7,7,'S. Sepelio + Arreglo Floral + Cremación',0,0,getdate(),'admin',null,null,null,null)
+
+
+
+CREATE PROCEDURE [dbo].[GetTiposConceptosAll]
+AS
+BEGIN
+	SET NOCOUNT ON;
+
+	SELECT xgtc.CodTipConcepto, xgtc.DesConcepto, sum(dp.Importe) TotalPlan, sum(dp.Importe)*0.011 CostoPlan
+	FROM xgTipCon xgtc
+	left join Prestacion p on p.CodTipConcepto = xgtc.CodTipConcepto
+	left join DetPrestacion dp on dp.PrestacionID = p.PrestacionID
+	group by xgtc.CodTipConcepto, xgtc.DesConcepto
+END
+
+
+CREATE TABLE [dbo].[CostoTipCon](
+	[CostoTipConID] [int] NOT NULL,
+	[CodTipConcepto] [int] NOT NULL,
+	[Descripcion] [varchar](100) NOT NULL,
+	[Importe] [decimal](15, 2) NOT NULL,
+	[FechaAlta] [datetime] NULL,
+	[UsuarioAlta] [varchar](50) NULL,
+	[FechaBaja] [datetime] NULL,
+	[UsuarioBaja] [varchar](50) NULL
+) ON [PRIMARY]
+
+
+CREATE TABLE [dbo].[CalculoPorTipo_SubRubro](
+	[ID] [int] NOT NULL,
+	[CodTipConcepto] [int] NULL,
+	[CodSubRub] int null,
+	[CodConFac] int null,
+	[Descripcion] [varchar](100) NOT NULL,
+	[Carencia] int null,
+	[Importe] [decimal](15, 2) NULL,
+	[Formula] varchar(800) null,
+	[Alias] varchar(20) null,
+	[FechaAlta] [datetime] NULL,
+	[UsuarioAlta] [varchar](50) NULL,
+	[FechaBaja] [datetime] NULL,
+	[UsuarioBaja] [varchar](50) NULL
+) ON [PRIMARY]
+
+
+create PROCEDURE [dbo].FormulaInertOrUpdate
+AS
+BEGIN
+	SET NOCOUNT ON;
+	
+		DECLARE
+		@columns NVARCHAR(MAX) = '',
+		@sql     NVARCHAR(MAX) = '';
+ 
+		-- select the category names
+		SELECT 
+			@columns+=
+			QUOTENAME(DesConcepto) + ','
+		FROM (select distinct x.DesConcepto
+			  from xgTipCon x ) l
+
+ 
+		-- remove the last comma
+		SET @columns = LEFT(@columns, LEN(@columns) - 1);
+
+		
+		-- construct dynamic SQL
+		SET @sql ='
+		create  table ##tabla([Cod] int,[Cobertura] varchar(200), [Descripcion Calculo] varchar(200), [Carencia] int, '+  replace(@columns,',','varchar(500),') + 'varchar(500))';
+
+		EXECUTE sp_executesql @sql 
+		
+		insert into ##tabla (Cod,cobertura,[Descripcion Calculo],[Carencia])
+		select CodSubRub,sr.Descripcion, '', 60
+		from scSubRub sr
+
+		declare @desc varchar(100), @cod int
+
+		declare clasificacion cursor for
+		select DesConcepto, CodTipConcepto from xgTipCon
+
+		open clasificacion
+
+		fetch next from clasificacion into @desc, @cod
+		WHILE @@FETCH_STATUS = 0
+		BEGIN
+
+			set @sql = 'update ##tabla set [' + @desc + '] = (select Formula from CalculoPorTipo_SubRubro where cod and CodSubRub = Cod)'
+
+			fetch next from clasificacion into @desc, @cod
+		END
+		close clasificacion
+		deallocate clasificacion
+
+		select * from ##tabla order by cod
+
+		drop table ##tabla
+
+END
+
+create PROCEDURE [dbo].getDatosCalculo
+  @CodTipConcepto int, @CodSubRub int
+AS
+BEGIN
+
+   SELECT *
+   FROM CalculoPorTipo_SubRubro c
+   WHERE c.CodTipConcepto = @CodTipConcepto AND
+   c.CodSubRub = @CodSubRub
+
+END
+
+create PROCEDURE [dbo].getDatosCalculo
+  @CodTipConcepto int, @CodSubRub int
+AS
+BEGIN
+
+   SELECT *
+   FROM CalculoPorTipo_SubRubro c
+   WHERE c.CodTipConcepto = @CodTipConcepto AND
+   c.CodSubRub = @CodSubRub
+
+END
+
+
+create PROCEDURE [dbo].DatosFormulaInsertOrUpdate
+  @CodTipConcepto int, @CodSubRub int , @CostoPlan float, @DescripionCalculo varchar(500), @Alias varchar(10), @Formula varchar(100), @CodConFac int, @Carencia int, @Usuario varchar(50)
+AS
+BEGIN
+
+   if exists(select * from CalculoPorTipo_SubRubro c where c.CodSubRub = @CodSubRub and c.CodTipConcepto = @CodTipConcepto)
+   begin
+	update c
+	set c.Alias = @Alias, c.Carencia = @Carencia, c.CodConFac = @CodConFac, c.CodSubRub = @CodSubRub, c.CodTipConcepto = @CodTipConcepto,
+	    c.Descripcion = @DescripionCalculo, c.Formula = @Formula, c.Importe = @CostoPlan
+	from CalculoPorTipo_SubRubro c 
+	where c.CodSubRub = @CodSubRub 
+	  and c.CodTipConcepto = @CodTipConcepto
+   end
+   else
+   begin
+		insert into CalculoPorTipo_SubRubro (ID,Alias,Carencia,CodConFac,CodSubRub,CodTipConcepto,Descripcion,Formula,Importe,UsuarioAlta,FechaAlta)
+		            values(1,@Alias,@Carencia,@CodConFac,@CodSubRub,@CodTipConcepto,@DescripionCalculo,@Formula,@CostoPlan,@Usuario,Getdate())
+
+   end
+
+END
+
+
+CREATE PROCEDURE [dbo].UpdatePricesConcepts
+AS
+BEGIN
+	SET NOCOUNT ON;
+            
+			
+			SELECT xgtc.CodTipConcepto, xgtc.DesConcepto, sum(dp.Importe) TotalPlan, sum(dp.Importe)*0.011 CostoPlan into ##CostoPlan
+			FROM xgTipCon xgtc
+			left join Prestacion p on p.CodTipConcepto = xgtc.CodTipConcepto
+			left join DetPrestacion dp on dp.PrestacionID = p.PrestacionID
+			group by xgtc.CodTipConcepto, xgtc.DesConcepto
+
+			select 
+				   *  into ##calculoConcepto
+			from CalculoPorTipo_SubRubro sc
+			order by 1 desc
+
+			update c
+			set Formula = replace(c.Formula,'#CP', convert(varchar,cp.CostoPlan))
+			from ##calculoConcepto c
+			join ##CostoPlan cp on cp.CodTipConcepto = c.CodTipConcepto
+
+
+			while exists (select * 
+							from ##calculoConcepto c 
+						   where formula like '%#%' and Formula not like '%' + Alias + '%' 
+							 and exists(select top 1 cc.alias from ##calculoConcepto cc where c.Formula like '%' + cc.Alias + '%' and cc.Formula not like '%#%' and len( cc.formula) > 0))
+			begin
+
+				update c
+				set formula = replace(formula,(select top 1 cc.alias from ##calculoConcepto cc where c.Formula like '%' + cc.Alias + '%' and cc.Formula not like '%#%' and len( cc.formula) > 0),(select top 1 cc.Formula from ##calculoConcepto cc where c.Formula like '%' + cc.Alias + '%' and cc.Formula not like '%#%' and len( cc.formula) > 0))
+				from ##calculoConcepto c 
+				where formula like '%#%' and Formula not like '%' + Alias + '%' 
+				and exists(select top 1 cc.alias from ##calculoConcepto cc where c.Formula like '%' + cc.Alias + '%' and cc.Formula not like '%#%' and len( cc.formula) > 0)
+
+			end
+
+			
+
+					declare @formula nvarchar(800), @subRub int, @codTipConcepto int, @sql2 nvarchar(800)
+
+					declare calculo cursor for
+					select c.CodSubRub,c.CodTipConcepto,c.Formula
+					from ##calculoConcepto c
+					where c.Formula not like '%#%'
+		
+					open calculo
+
+					fetch next from calculo into @subRub, @codTipConcepto, @formula
+					WHILE @@FETCH_STATUS = 0
+					BEGIN
+						set @sql2 = 'update ##calculoConcepto set Importe = ' + @formula + ' where CodTipConcepto = ' + convert(varchar,@codTipConcepto) + ' and CodSubRub = ' + convert(varchar,@subRub)
+						EXECUTE sp_executesql @sql2
+			
+						fetch next from calculo into @subRub, @codTipConcepto, @formula
+					END
+					close calculo
+					deallocate calculo
+
+					
+					update vccf
+					set vccf.PreUnitario = c.Importe
+					from vcConFac vccf
+					join ##calculoConcepto c on vccf.CodConFac = c.CodConFac
+					where c.Formula not like '%#%'
+					and len(Formula) > 0
+
+
+			drop table ##CostoPlan
+			drop table ##calculoConcepto
+
+end
+
+
+
+CREATE PROCEDURE [dbo].getCalculoImporte
+AS
+BEGIN
+	SET NOCOUNT ON;
+
+			--drop table ##CostoPlan
+			--drop table ##calculoConcepto
+			SELECT xgtc.CodTipConcepto, xgtc.DesConcepto, sum(dp.Importe) TotalPlan, sum(dp.Importe)*0.011 CostoPlan into ##CostoPlan
+			FROM xgTipCon xgtc
+			left join Prestacion p on p.CodTipConcepto = xgtc.CodTipConcepto
+			left join DetPrestacion dp on dp.PrestacionID = p.PrestacionID
+			group by xgtc.CodTipConcepto, xgtc.DesConcepto
+
+			select ---(select count(*) from CalculoPorTipo_SubRubro sc1 where sc1.Formula like '%' + sc.Alias + '%')Cant ,
+				   *  into ##calculoConcepto
+			from CalculoPorTipo_SubRubro sc
+			order by 1 desc
+
+			update c
+			set Formula = replace(c.Formula,'#CP', convert(varchar,cp.CostoPlan))
+			from ##calculoConcepto c
+			join ##CostoPlan cp on cp.CodTipConcepto = c.CodTipConcepto
+
+
+			while exists (select * 
+							from ##calculoConcepto c 
+						   where formula like '%#%' and Formula not like '%' + Alias + '%' 
+							 and exists(select top 1 cc.alias from ##calculoConcepto cc where c.Formula like '%' + cc.Alias + '%' and cc.Formula not like '%#%' and len( cc.formula) > 0))
+			begin
+
+				update c
+				set formula = replace(formula,(select top 1 cc.alias from ##calculoConcepto cc where c.Formula like '%' + cc.Alias + '%' and cc.Formula not like '%#%' and len( cc.formula) > 0),(select top 1 cc.Formula from ##calculoConcepto cc where c.Formula like '%' + cc.Alias + '%' and cc.Formula not like '%#%' and len( cc.formula) > 0))
+				from ##calculoConcepto c 
+				where formula like '%#%' and Formula not like '%' + Alias + '%' 
+				and exists(select top 1 cc.alias from ##calculoConcepto cc where c.Formula like '%' + cc.Alias + '%' and cc.Formula not like '%#%' and len( cc.formula) > 0)
+
+			end
+
+			
+
+					declare @formula nvarchar(800), @subRub int, @codTipConcepto int, @sql2 nvarchar(800)
+
+					declare calculo cursor for
+					select c.CodSubRub,c.CodTipConcepto,c.Formula
+					from ##calculoConcepto c
+					where c.Formula not like '%#%'
+		
+					open calculo
+
+					fetch next from calculo into @subRub, @codTipConcepto, @formula
+					WHILE @@FETCH_STATUS = 0
+					BEGIN
+						set @sql2 = 'update ##calculoConcepto set Importe = ' + @formula + ' where CodTipConcepto = ' + convert(varchar,@codTipConcepto) + ' and CodSubRub = ' + convert(varchar,@subRub)
+						EXECUTE sp_executesql @sql2
+			
+						fetch next from calculo into @subRub, @codTipConcepto, @formula
+					END
+					close calculo
+					deallocate calculo
+
+					/*  Muestro los resultados   */
+
+					DECLARE
+					@columns NVARCHAR(MAX) = '',
+					@sql     NVARCHAR(MAX) = '';
+ 
+					-- select the category names
+					SELECT 
+						@columns+=
+						QUOTENAME(DesConcepto) + ','
+					FROM (select distinct x.DesConcepto
+						  from xgTipCon x ) l
+
+ 
+					-- remove the last comma
+					SET @columns = LEFT(@columns, LEN(@columns) - 1);
+
+		
+					-- construct dynamic SQL
+					SET @sql ='
+					create  table ##tablaImporte([Cod] int,[Cobertura] varchar(200), [Descripcion Calculo] varchar(200), [Carencia] int, '+  replace(@columns,',','varchar(500),') + 'varchar(500))';
+
+					EXECUTE sp_executesql @sql 
+		
+					insert into ##tablaImporte (Cod,cobertura,[Descripcion Calculo],[Carencia])
+					select CodSubRub,sr.Descripcion, (select top 1 cs.Descripcion from CalculoPorTipo_SubRubro cs where sr.CodSubRub = cs.CodSubRub order by len(cs.Descripcion) desc), 60
+					from scSubRub sr
+
+					declare @desc varchar(100), @cod int
+
+					declare clasificacion cursor for
+					select DesConcepto, CodTipConcepto from xgTipCon
+
+					open clasificacion
+
+					fetch next from clasificacion into @desc, @cod
+					WHILE @@FETCH_STATUS = 0
+					BEGIN
+
+						set @sql = 'update ##tablaImporte set [' + @desc + '] = (select cts.Importe
+																		   from ##calculoConcepto cts
+																		   left join vcConFac vccf on cts.CodConFac = vccf.CodConFac
+																		   where cts.CodTipConcepto = ' + convert(varchar,@cod) + ' 
+																		   and cts.CodSubRub = Cod)'
+						
+						EXECUTE sp_executesql @sql 
+						fetch next from clasificacion into @desc, @cod
+					END
+					close clasificacion
+					deallocate clasificacion
+
+					select * from ##tablaImporte order by cod
+
+					drop table ##tablaImporte
+
+
+
+			drop table ##CostoPlan
+			drop table ##calculoConcepto
+END
+
+
+
+
+
+
+create PROCEDURE [dbo].getCalculoFormulas
+AS
+BEGIN
+	SET NOCOUNT ON;
+	
+		DECLARE
+		@columns NVARCHAR(MAX) = '',
+		@sql     NVARCHAR(MAX) = '';
+ 
+		-- select the category names
+		SELECT 
+			@columns+=
+			QUOTENAME(DesConcepto) + ','
+		FROM (select distinct x.DesConcepto
+			  from xgTipCon x ) l
+
+ 
+		-- remove the last comma
+		SET @columns = LEFT(@columns, LEN(@columns) - 1);
+
+		
+		-- construct dynamic SQL
+		SET @sql ='
+		create  table ##tabla([Cod] int,[Cobertura] varchar(200), [Descripcion Calculo] varchar(200), [Carencia] int, '+  replace(@columns,',','varchar(500),') + 'varchar(500))';
+
+		EXECUTE sp_executesql @sql 
+		
+		insert into ##tabla (Cod,cobertura,[Descripcion Calculo],[Carencia])
+		select CodSubRub,sr.Descripcion, (select top 1 cs.Descripcion from CalculoPorTipo_SubRubro cs where sr.CodSubRub = cs.CodSubRub order by len(cs.Descripcion) desc), 60
+		from scSubRub sr
+
+		declare @desc varchar(100), @cod int
+
+		declare clasificacion cursor for
+		select DesConcepto, CodTipConcepto from xgTipCon
+
+		open clasificacion
+
+		fetch next from clasificacion into @desc, @cod
+		WHILE @@FETCH_STATUS = 0
+		BEGIN
+
+			set @sql = 'update ##tabla set [' + @desc + '] = (select Formula from CalculoPorTipo_SubRubro where CodTipConcepto = ' + convert(varchar,@cod) + ' and CodSubRub = Cod)'
+			EXECUTE sp_executesql @sql 
+			fetch next from clasificacion into @desc, @cod
+		END
+		close clasificacion
+		deallocate clasificacion
+
+		select * from ##tabla order by cod
+
+		drop table ##tabla
+
+END
+
+
+
+create PROCEDURE [dbo].getCalculoAliases
+AS
+BEGIN
+	SET NOCOUNT ON;
+	
+		DECLARE
+		@columns NVARCHAR(MAX) = '',
+		@sql     NVARCHAR(MAX) = '';
+ 
+		-- select the category names
+		SELECT 
+			@columns+=
+			QUOTENAME(DesConcepto) + ','
+		FROM (select distinct x.DesConcepto
+			  from xgTipCon x ) l
+
+ 
+		-- remove the last comma
+		SET @columns = LEFT(@columns, LEN(@columns) - 1);
+
+		
+		-- construct dynamic SQL
+		SET @sql ='
+		create  table ##tabla1([Cod] int,[Cobertura] varchar(200), [Descripcion Calculo] varchar(200), [Carencia] int, '+  replace(@columns,',','varchar(500),') + 'varchar(500))';
+
+		EXECUTE sp_executesql @sql 
+		
+		insert into ##tabla1 (Cod,cobertura,[Descripcion Calculo],[Carencia])
+		select CodSubRub,sr.Descripcion, (select top 1 cs.Descripcion from CalculoPorTipo_SubRubro cs where sr.CodSubRub = cs.CodSubRub order by len(cs.Descripcion) desc), 60
+		from scSubRub sr
+
+		declare @desc varchar(100), @cod int
+
+		declare clasificacion cursor for
+		select DesConcepto, CodTipConcepto from xgTipCon
+
+		open clasificacion
+
+		fetch next from clasificacion into @desc, @cod
+		WHILE @@FETCH_STATUS = 0
+		BEGIN
+
+			set @sql = 'update ##tabla1 set [' + @desc + '] = (select Alias from CalculoPorTipo_SubRubro where CodTipConcepto = ' + convert(varchar,@cod) + ' and CodSubRub = Cod)'
+			EXECUTE sp_executesql @sql 
+			fetch next from clasificacion into @desc, @cod
+		END
+		close clasificacion
+		deallocate clasificacion
+
+		select * from ##tabla1 order by cod
+
+		drop table ##tabla1
+
+END
+
+
+
+create PROCEDURE [dbo].getCalculoConceptos
+AS
+BEGIN
+	SET NOCOUNT ON;
+	
+		DECLARE
+		@columns NVARCHAR(MAX) = '',
+		@sql     NVARCHAR(MAX) = '';
+ 
+		-- select the category names
+		SELECT 
+			@columns+=
+			QUOTENAME(DesConcepto) + ','
+		FROM (select distinct x.DesConcepto
+			  from xgTipCon x ) l
+
+ 
+		-- remove the last comma
+		SET @columns = LEFT(@columns, LEN(@columns) - 1);
+
+		
+		-- construct dynamic SQL
+		SET @sql ='
+		create  table ##tabla2([Cod] int,[Cobertura] varchar(200), [Descripcion Calculo] varchar(200), [Carencia] int, '+  replace(@columns,',','varchar(500),') + 'varchar(500))';
+
+		EXECUTE sp_executesql @sql 
+		
+		insert into ##tabla2 (Cod,cobertura,[Descripcion Calculo],[Carencia])
+		select CodSubRub,sr.Descripcion, (select top 1 cs.Descripcion from CalculoPorTipo_SubRubro cs where sr.CodSubRub = cs.CodSubRub order by len(cs.Descripcion) desc), 60
+		from scSubRub sr
+
+		declare @desc varchar(100), @cod int
+
+		declare clasificacion cursor for
+		select DesConcepto, CodTipConcepto from xgTipCon
+
+		open clasificacion
+
+		fetch next from clasificacion into @desc, @cod
+		WHILE @@FETCH_STATUS = 0
+		BEGIN
+
+			set @sql = 'update ##tabla2 set [' + @desc + '] = (select convert(varchar,cts.CodConFac) + ''-'' + vccf.Concepto
+			                                                   from CalculoPorTipo_SubRubro cts
+															   join vcConFac vccf on cts.CodConFac = vccf.CodConFac
+															   where cts.CodTipConcepto = ' + convert(varchar,@cod) + ' 
+															   and cts.CodSubRub = Cod)'
+			EXECUTE sp_executesql @sql 
+			fetch next from clasificacion into @desc, @cod
+		END
+		close clasificacion
+		deallocate clasificacion
+
+		select * from ##tabla2 order by cod
+
+		drop table ##tabla2
+
+END
+
